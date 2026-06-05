@@ -148,7 +148,52 @@
     opacity: 0.8;
   }
 
-  .duration-input {
+  .duration-picker {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 0 10px;
+    border-bottom: 1px solid var(--hairline);
+    flex-wrap: wrap;
+  }
+
+  .duration-picker-label {
+    font-size: 11px;
+    color: var(--faint);
+    letter-spacing: 0.08em;
+    margin-right: 2px;
+  }
+
+  .dur-btn {
+    background: none;
+    border: 1px solid var(--hairline-strong);
+    border-radius: 20px;
+    font-family: inherit;
+    font-size: 11px;
+    color: var(--muted);
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+  }
+
+  .dur-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .dur-btn.selected {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--paper);
+  }
+
+  .dur-btn[data-min="0"] {
+    border-color: transparent;
+    color: var(--faint);
+    padding: 4px 6px;
+  }
     border: none;
     background: transparent;
     font-family: inherit;
@@ -760,6 +805,16 @@
       <input type="text" id="taskInput" class="text-input" placeholder="思いついたことを書く" maxlength="120" autofocus />
       <input type="date" id="dateInput" class="date-input" aria-label="日付" />
     </form>
+    <div class="duration-picker" id="durationPicker">
+      <span class="duration-picker-label">時間</span>
+      <button type="button" class="dur-btn" data-min="0">−</button>
+      <button type="button" class="dur-btn" data-min="15">15分</button>
+      <button type="button" class="dur-btn" data-min="30">30分</button>
+      <button type="button" class="dur-btn" data-min="45">45分</button>
+      <button type="button" class="dur-btn" data-min="60">1時間</button>
+      <button type="button" class="dur-btn" data-min="90">1.5時間</button>
+      <button type="button" class="dur-btn" data-min="120">2時間</button>
+    </div>
     <input type="date" id="rescheduleInput" aria-hidden="true" tabindex="-1" style="position: absolute; top: 0; left: 0; width: 1px; height: 1px; opacity: 0;" />
 
     <ul class="task-list" id="todayList"></ul>
@@ -1422,13 +1477,13 @@
       }
     }
 
-    // Duration sum: 今日のタスクの予定時間合計
-    const totalMinutesToday = tasks
-      .filter(t => t.date === today)
+    // Duration sum: 今日の未完了タスクの残り時間合計
+    const remainingMinutes = tasks
+      .filter(t => t.date === today && !t.done)
       .reduce((sum, t) => sum + (t.duration_minutes || 0), 0);
     const durationSummaryEl = document.getElementById('durationSummary');
-    if (totalMinutesToday > 0) {
-      durationSummaryEl.innerHTML = `予定<span class="duration-num">${formatDuration(totalMinutesToday)}</span>`;
+    if (remainingMinutes > 0) {
+      durationSummaryEl.innerHTML = `残り<span class="duration-num">${formatDuration(remainingMinutes)}</span>`;
       durationSummaryEl.style.display = 'block';
     } else {
       durationSummaryEl.style.display = 'none';
@@ -1437,13 +1492,26 @@
     initSortable();
   }
 
+  let selectedDuration = 0;
+
+  document.querySelectorAll('.dur-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const min = parseInt(btn.dataset.min, 10);
+      selectedDuration = min;
+      document.querySelectorAll('.dur-btn').forEach(b => b.classList.remove('selected'));
+      if (min > 0) btn.classList.add('selected');
+    });
+  });
+
   document.getElementById('inputForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const textInput = document.getElementById('taskInput');
     const date = dateInput.value || todayStr();
-    await addTask(textInput.value, date);
+    await addTask(textInput.value, date, selectedDuration > 0 ? selectedDuration : null);
     textInput.value = '';
     dateInput.value = todayStr();
+    selectedDuration = 0;
+    document.querySelectorAll('.dur-btn').forEach(b => b.classList.remove('selected'));
     textInput.focus();
   });
 
