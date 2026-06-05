@@ -1,0 +1,1726 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>My Tasks</title>
+
+<!-- ===== PWA設定 ===== -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#FAF7F0">
+
+<!-- iOS Safari用 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="My Tasks">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" sizes="512x512" href="icon-512.png">
+
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<!-- ================== -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Shippori+Mincho:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.107.0"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #FAF7F0;
+    --ink: #2A2820;
+    --muted: #8B8578;
+    --faint: #C9C2B0;
+    --done: #B5AE9C;
+    --accent: #7A6240;
+    --paper: #FFFDF6;
+    --hairline: rgba(60, 50, 30, 0.12);
+    --hairline-strong: rgba(60, 50, 30, 0.2);
+  }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: 'Zen Kaku Gothic New', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 60px 24px 80px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 480px;
+  }
+
+  .header {
+    margin-bottom: 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .title {
+    font-family: 'Fraunces', 'Shippori Mincho', Georgia, serif;
+    font-size: 30px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    font-variation-settings: 'opsz' 72, 'SOFT' 30;
+    color: var(--ink);
+  }
+
+  .date-display {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
+
+  /* Input row */
+  .input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .plus {
+    color: var(--faint);
+    font-size: 18px;
+    font-weight: 300;
+    width: 18px;
+    text-align: center;
+    line-height: 1;
+    user-select: none;
+    flex-shrink: 0;
+  }
+
+  .text-input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    outline: none;
+    font-family: inherit;
+    font-size: 15px;
+    color: var(--ink);
+    padding: 4px 0;
+  }
+
+  .text-input::placeholder {
+    color: var(--faint);
+    font-weight: 400;
+  }
+
+  .date-input {
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--muted);
+    padding: 4px 6px;
+    cursor: pointer;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+    max-width: 130px;
+  }
+  .date-input:hover {
+    background: rgba(60, 50, 30, 0.05);
+  }
+  .date-input:focus {
+    outline: none;
+    background: rgba(60, 50, 30, 0.05);
+  }
+  .date-input::-webkit-calendar-picker-indicator {
+    opacity: 0.4;
+    cursor: pointer;
+    margin-left: 2px;
+  }
+  .date-input::-webkit-calendar-picker-indicator:hover {
+    opacity: 0.8;
+  }
+
+  .duration-input {
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--muted);
+    padding: 4px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+    width: 50px;
+    text-align: right;
+    -moz-appearance: textfield;
+  }
+  .duration-input::-webkit-outer-spin-button,
+  .duration-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .duration-input:hover {
+    background: rgba(60, 50, 30, 0.05);
+  }
+  .duration-input:focus {
+    outline: none;
+    background: rgba(60, 50, 30, 0.05);
+  }
+  .duration-input::placeholder {
+    color: var(--faint);
+  }
+
+  /* Task list */
+  .task-list {
+    list-style: none;
+  }
+
+  .task {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--hairline);
+    transition: opacity 0.5s ease;
+  }
+
+  .task.done {
+    opacity: 0.45;
+  }
+
+  .checkbox {
+    width: 18px;
+    height: 18px;
+    border: 1.5px solid var(--faint);
+    border-radius: 50%;
+    flex-shrink: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.3s ease, border-color 0.3s ease;
+    background: transparent;
+  }
+
+  .checkbox:hover {
+    border-color: var(--muted);
+  }
+
+  .task.done .checkbox {
+    background: var(--muted);
+    border-color: var(--muted);
+  }
+
+  .check-icon {
+    opacity: 0;
+    transform: scale(0.3);
+    transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .task.done .check-icon {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .check-icon svg {
+    stroke: var(--paper);
+    stroke-width: 2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .task-text {
+    flex: 1;
+    font-size: 15px;
+    transition: color 0.4s ease;
+    word-break: break-word;
+    min-width: 0;
+    cursor: text;
+  }
+
+  .task.done .task-text {
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+    color: var(--done);
+  }
+
+  .edit-input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    outline: none;
+    font-family: inherit;
+    font-size: 15px;
+    color: var(--ink);
+    padding: 0;
+    border-bottom: 1px dashed var(--muted);
+    line-height: 1.7;
+  }
+
+  .task.editing,
+  .future-task.editing {
+    opacity: 1 !important;
+  }
+  .task.editing .task-text,
+  .future-task.editing .task-text {
+    text-decoration: none;
+  }
+
+  .drag-handle {
+    width: 14px;
+    flex-shrink: 0;
+    cursor: grab;
+    color: var(--faint);
+    opacity: 0.35;
+    transition: opacity 0.2s ease, color 0.2s ease;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+  }
+  .task:hover .drag-handle,
+  .future-task:hover .drag-handle {
+    opacity: 0.85;
+    color: var(--muted);
+  }
+  .drag-handle:active {
+    cursor: grabbing;
+  }
+  .task.done .drag-handle {
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .sortable-ghost {
+    opacity: 0.25;
+  }
+  .sortable-chosen {
+    background: rgba(60, 50, 30, 0.03);
+  }
+  .sortable-drag {
+    opacity: 0.95;
+    background: var(--paper);
+  }
+
+  .overdue-tag {
+    font-size: 11px;
+    color: var(--faint);
+    margin-left: 8px;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+
+  .task-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    opacity: 0.4;
+    transition: opacity 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .task:hover .task-actions,
+  .task:focus-within .task-actions {
+    opacity: 1;
+  }
+
+  .icon-btn {
+    background: none;
+    border: none;
+    color: var(--faint);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 4px 6px;
+    line-height: 1;
+    font-family: inherit;
+    letter-spacing: 0.05em;
+    border-radius: 4px;
+    transition: color 0.2s ease, background 0.2s ease;
+  }
+  .icon-btn:hover {
+    color: var(--ink);
+    background: rgba(60, 50, 30, 0.05);
+  }
+  .icon-btn.delete {
+    font-size: 16px;
+    padding: 2px 6px;
+  }
+
+  .empty-state {
+    padding: 28px 0;
+    text-align: center;
+    color: var(--faint);
+    font-size: 13px;
+    letter-spacing: 0.05em;
+  }
+
+  /* これから section */
+  .future-section {
+    margin-top: 36px;
+    padding-top: 20px;
+    border-top: 1px solid var(--hairline-strong);
+  }
+
+  .future-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 0;
+    font-family: 'Shippori Mincho', serif;
+    font-size: 14px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    width: 100%;
+    text-align: left;
+  }
+  .future-toggle:hover { color: var(--ink); }
+
+  .future-count {
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-size: 12px;
+    color: var(--faint);
+    margin-left: 4px;
+    letter-spacing: 0;
+  }
+
+  .chevron {
+    margin-left: auto;
+    display: inline-block;
+    transition: transform 0.25s ease;
+    color: var(--faint);
+    font-size: 10px;
+  }
+  .future-section.collapsed .chevron {
+    transform: rotate(-90deg);
+  }
+  .future-section.collapsed .future-content {
+    display: none;
+  }
+
+  .future-content {
+    padding-top: 14px;
+  }
+
+  .date-group {
+    margin-bottom: 14px;
+  }
+  .date-group:last-child { margin-bottom: 0; }
+
+  .date-group-header {
+    font-family: 'Shippori Mincho', serif;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    padding: 8px 0 4px;
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .date-group-header .day-label {
+    margin-left: 6px;
+    color: var(--faint);
+  }
+
+  .future-task {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--hairline);
+    transition: opacity 0.3s ease;
+  }
+  .future-task:last-child { border-bottom: none; }
+
+  /* Today Summary（完了カウンター） */
+  .today-summary {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--hairline);
+    text-align: right;
+    font-family: 'Shippori Mincho', serif;
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    transition: color 0.3s ease;
+  }
+
+  .today-summary.zero {
+    color: var(--faint);
+  }
+  .today-summary.zero .count-num {
+    color: var(--faint);
+  }
+
+  /* Footer */
+  .footer {
+    margin-top: 64px;
+    text-align: center;
+    padding-top: 18px;
+    border-top: 1px solid var(--hairline);
+  }
+
+  .footer-label {
+    font-size: 11px;
+    color: var(--faint);
+    letter-spacing: 0.2em;
+    font-weight: 500;
+  }
+
+  .count-num {
+    font-size: 21px;
+    color: var(--accent);
+    font-weight: 500;
+    display: inline-block;
+    margin: 0 6px 0 4px;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.3s ease;
+  }
+
+  .summary-line {
+    line-height: 1.6;
+  }
+  .summary-duration {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .today-summary.zero .summary-duration {
+    color: var(--faint);
+  }
+  .duration-num {
+    color: var(--accent);
+    font-weight: 500;
+    margin: 0 4px;
+  }
+  .today-summary.zero .duration-num {
+    color: var(--faint);
+  }
+
+  /* タスク内の時間表示 */
+  .task-duration,
+  .future-task-duration {
+    font-size: 11px;
+    color: var(--faint);
+    margin: 0 8px;
+    flex-shrink: 0;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+  }
+
+  @media (max-width: 420px) {
+    body { padding: 40px 18px 60px; }
+    .title { font-size: 26px; }
+    .date-input { max-width: 105px; font-size: 11px; }
+  }
+
+  @media (hover: none) {
+    .task-actions { opacity: 1; }
+    .drag-handle { opacity: 0.65; }
+    .icon-btn { padding: 8px 10px; font-size: 12px; }
+    .icon-btn.delete { padding: 6px 10px; font-size: 17px; }
+  }
+
+  /* ===== ログイン画面 ===== */
+  #login-screen {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 80px 24px;
+    min-height: 60vh;
+  }
+
+  .login-title {
+    font-family: 'Fraunces', 'Shippori Mincho', Georgia, serif;
+    font-weight: 400;
+    font-size: 52px;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    margin-bottom: 20px;
+    font-variation-settings: 'opsz' 72;
+  }
+
+  .login-star {
+    display: inline-block;
+    width: 22px;
+    height: 22px;
+    color: var(--accent);
+    vertical-align: top;
+    margin-left: 6px;
+    margin-top: 6px;
+    opacity: 0.85;
+  }
+
+  .login-subtitle {
+    font-family: 'Shippori Mincho', serif;
+    font-weight: 400;
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.8;
+    margin-bottom: 56px;
+    letter-spacing: 0.04em;
+  }
+
+  .google-login-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 28px;
+    background: var(--paper);
+    border: 1px solid var(--hairline-strong);
+    border-radius: 4px;
+    color: var(--ink);
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    letter-spacing: 0.02em;
+  }
+
+  .google-login-btn:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+  }
+
+  .google-login-btn:active {
+    transform: translateY(0);
+  }
+
+  .google-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
+  /* ===== ヘッダー右側（日付＋ログアウト） ===== */
+  .header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+  }
+
+  .logout-btn,
+  .header-link {
+    background: none;
+    border: none;
+    color: var(--faint);
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.2s ease;
+  }
+
+  .logout-btn:hover,
+  .header-link:hover {
+    color: var(--muted);
+  }
+
+  /* ===== 履歴画面 ===== */
+  .back-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-family: 'Fraunces', 'Shippori Mincho', serif;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.2s ease;
+  }
+
+  .back-btn:hover {
+    color: var(--ink);
+  }
+
+  .history-screen-title {
+    font-family: 'Fraunces', serif;
+    font-size: 18px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    font-variation-settings: 'opsz' 48;
+  }
+
+  .history-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .history-item {
+    padding: 16px 0;
+    border-bottom: 1px solid var(--hairline);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .history-item:last-child {
+    border-bottom: none;
+  }
+
+  .history-item-body {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .history-item-text {
+    color: var(--done);
+    font-size: 15px;
+    line-height: 1.5;
+    text-decoration: line-through;
+    text-decoration-color: var(--faint);
+    text-decoration-thickness: 1px;
+    word-break: break-word;
+  }
+
+  .history-item-meta {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--faint);
+    letter-spacing: 0.05em;
+  }
+
+  .restore-btn {
+    background: none;
+    border: 1px solid var(--hairline-strong);
+    color: var(--muted);
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-size: 11px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    letter-spacing: 0.04em;
+  }
+
+  .restore-btn:hover {
+    color: var(--ink);
+    border-color: var(--accent);
+  }
+</style>
+</head>
+<body>
+  <!-- ログイン画面（未ログイン時に表示） -->
+  <div id="login-screen" style="display: none;">
+    <h1 class="login-title">My Tasks<svg class="login-star" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 L13.2 10.8 L21 12 L13.2 13.2 L12 21 L10.8 13.2 L3 12 L10.8 10.8 Z"/></svg></h1>
+    <p class="login-subtitle">ほしいものは、小さなステップの先にある。</p>
+    <button id="google-login-btn" class="google-login-btn">
+      <svg class="google-icon" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+        <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+        <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
+        <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+        <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+      </svg>
+      Googleでログイン
+    </button>
+  </div>
+
+  <!-- メインアプリ（ログイン後に表示） -->
+  <div class="app" id="main-app" style="display:none;">
+    <div class="header">
+      <h1 class="title">Today</h1>
+      <div class="header-right">
+        <div class="date-display" id="dateDisplay"></div>
+        <button class="header-link" id="history-btn">履歴</button>
+        <button class="header-link" id="logout-btn">ログアウト</button>
+      </div>
+    </div>
+
+    <form class="input-row" id="inputForm" autocomplete="off">
+      <span class="plus" aria-hidden="true">+</span>
+      <input type="text" id="taskInput" class="text-input" placeholder="思いついたことを書く" maxlength="120" autofocus />
+      <input type="date" id="dateInput" class="date-input" aria-label="日付" />
+    </form>
+    <input type="date" id="rescheduleInput" aria-hidden="true" tabindex="-1" style="position: absolute; top: 0; left: 0; width: 1px; height: 1px; opacity: 0;" />
+
+    <ul class="task-list" id="todayList"></ul>
+    <div id="emptyToday" class="empty-state" style="display:none;">今日はまだ何もない。思いついたらここに。</div>
+
+    <div class="today-summary">
+      <div class="summary-line">完了<span class="count-num" id="counter">0</span>個</div>
+      <div class="summary-line summary-duration" id="durationSummary" style="display:none;"></div>
+    </div>
+
+    <div class="future-section" id="futureSection" style="display:none;">
+      <button class="future-toggle" id="futureToggle" aria-expanded="true">
+        これから<span class="future-count" id="futureCount"></span>
+        <span class="chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="future-content" id="futureContent"></div>
+    </div>
+
+    <div class="footer">
+      <div class="footer-label">DAILY LIST</div>
+    </div>
+  </div>
+
+  <!-- 履歴画面 -->
+  <div class="app" id="history-screen" style="display:none;">
+    <div class="header">
+      <button class="back-btn" id="back-from-history">← 戻る</button>
+      <div class="header-right">
+        <span class="history-screen-title">History</span>
+      </div>
+    </div>
+    <div id="history-empty" class="empty-state" style="display:none;">完了したタスクはまだない。</div>
+    <ul class="history-list" id="history-list"></ul>
+  </div>
+
+<script>
+  // ===== Supabase クライアント初期化（v2準備） =====
+  const SUPABASE_URL = 'https://kzzdsibwjvocbihfqtlv.supabase.co';
+  const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_n2qWIOJzVfrzjYANDe4UzA_O4dLVmZ1'; // ← 保存しておいたsb_publishable_...で始まるキーをここに貼る
+  let supabaseClient = null;
+  if (SUPABASE_PUBLISHABLE_KEY !== 'PASTE_YOUR_PUBLISHABLE_KEY_HERE' && window.supabase) {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true,
+        flowType: 'implicit'
+      }
+    });
+    console.log('Supabase client loaded:', supabaseClient ? '✓ OK' : '✗ NG');
+  } else {
+    console.warn('Supabase: 鍵が未設定です（PASTE_YOUR_PUBLISHABLE_KEY_HEREを置き換えてください）');
+  }
+  // ================================================
+
+  let tasks = [];
+  const days = ['日', '月', '火', '水', '木', '金', '土'];
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function formatDuration(minutes) {
+    if (!minutes || minutes <= 0) return '';
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    if (h === 0) return `${m}分`;
+    if (m === 0) return `${h}時間`;
+    return `${h}時間${m}分`;
+  }
+
+  function dateStr(d) {
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  }
+  function todayStr() { return dateStr(new Date()); }
+  function maxDateStr() {
+    const d = new Date();
+    d.setDate(d.getDate() + 62); // ~2ヶ月先
+    return dateStr(d);
+  }
+
+  function formatHeaderDate(d) {
+    return `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())} ${days[d.getDay()]}`;
+  }
+  function formatShortDate(yyyymmdd) {
+    const [y, m, d] = yyyymmdd.split('-').map(Number);
+    const dt = new Date(y, m-1, d);
+    return `${m}/${d} ${days[dt.getDay()]}`;
+  }
+  function formatOverdueTag(yyyymmdd) {
+    const [, m, d] = yyyymmdd.split('-').map(Number);
+    return `${m}/${d}から`;
+  }
+
+  document.getElementById('dateDisplay').textContent = formatHeaderDate(new Date());
+
+  const dateInput = document.getElementById('dateInput');
+  dateInput.value = todayStr();
+  dateInput.min = todayStr();
+  dateInput.max = maxDateStr();
+
+  async function loadTasks() {
+    if (!supabaseClient || !currentUser) {
+      console.warn('loadTasks: クライアントまたはユーザー未設定');
+      tasks = [];
+      render();
+      return;
+    }
+
+    try {
+      const { data, error } = await supabaseClient
+        .from('tasks')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .order('order', { ascending: true });
+
+      if (error) {
+        console.error('タスク読み込みエラー:', error);
+        tasks = [];
+      } else {
+        tasks = data || [];
+        console.log('タスク読み込み:', tasks.length, '件');
+      }
+    } catch (e) {
+      console.error('loadTasks例外:', e);
+      tasks = [];
+    }
+
+    render();
+  }
+
+  async function addTask(text, date, durationMinutes) {
+    const trimmed = (text || '').trim();
+    if (!trimmed) return;
+    if (!supabaseClient || !currentUser) {
+      console.warn('addTask: クライアントまたはユーザー未設定');
+      return;
+    }
+
+    const tempId = crypto.randomUUID();
+    const maxOrder = tasks.reduce((m, t) => Math.max(m, t.order || 0), -1);
+    const taskDate = date || todayStr();
+    const newOrder = maxOrder + 1;
+    const hasDuration = durationMinutes && durationMinutes > 0;
+
+    // 楽観的に追加するタスクオブジェクト
+    const optimisticTask = {
+      id: tempId,
+      user_id: currentUser.id,
+      text: trimmed,
+      date: taskDate,
+      done: false,
+      order: newOrder,
+      completed_at: null,
+      duration_minutes: hasDuration ? durationMinutes : null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    // 1. 即座にUI更新
+    tasks.push(optimisticTask);
+    render();
+
+    // 2. 裏で保存
+    const insertData = {
+      id: tempId,
+      user_id: currentUser.id,
+      text: trimmed,
+      date: taskDate,
+      done: false,
+      order: newOrder
+    };
+    if (hasDuration) {
+      insertData.duration_minutes = durationMinutes;
+    }
+
+    try {
+      const { data, error } = await supabaseClient
+        .from('tasks')
+        .insert(insertData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('タスク追加エラー（ロールバック）:', error);
+        tasks = tasks.filter(t => t.id !== tempId);
+        render();
+        alert('タスクの追加に失敗しました: ' + error.message);
+      } else {
+        // サーバーから返ってきたデータで置き換え（より正確）
+        const idx = tasks.findIndex(t => t.id === tempId);
+        if (idx !== -1) {
+          tasks[idx] = data;
+        }
+        console.log('タスク追加:', data);
+      }
+    } catch (e) {
+      console.error('addTask例外（ロールバック）:', e);
+      tasks = tasks.filter(t => t.id !== tempId);
+      render();
+    }
+  }
+
+  async function toggleTask(id) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    if (!supabaseClient || !currentUser) return;
+
+    // 古い値を保存（失敗時ロールバック用）
+    const oldDone = t.done;
+    const oldCompletedAt = t.completed_at;
+    const newDone = !t.done;
+    const newCompletedAt = newDone ? new Date().toISOString() : null;
+
+    // 1. 即座にUI更新（楽観的）
+    t.done = newDone;
+    t.completed_at = newCompletedAt;
+    if (newDone) pulseCounter();
+    render();
+
+    // 2. 裏でSupabaseに保存
+    try {
+      const { error } = await supabaseClient
+        .from('tasks')
+        .update({
+          done: newDone,
+          completed_at: newCompletedAt
+        })
+        .eq('id', id);
+
+      if (error) {
+        console.error('toggleTaskエラー（ロールバック）:', error);
+        t.done = oldDone;
+        t.completed_at = oldCompletedAt;
+        render();
+      }
+    } catch (e) {
+      console.error('toggleTask例外（ロールバック）:', e);
+      t.done = oldDone;
+      t.completed_at = oldCompletedAt;
+      render();
+    }
+  }
+
+  async function deleteTask(id) {
+    if (!supabaseClient || !currentUser) return;
+
+    const oldTaskIdx = tasks.findIndex(t => t.id === id);
+    if (oldTaskIdx === -1) return;
+    const oldTask = tasks[oldTaskIdx];
+
+    // 1. 即座にUI更新
+    tasks = tasks.filter(t => t.id !== id);
+    render();
+
+    // 2. 裏で削除
+    try {
+      const { error } = await supabaseClient
+        .from('tasks')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('deleteTaskエラー（ロールバック）:', error);
+        tasks.splice(oldTaskIdx, 0, oldTask);
+        render();
+      }
+    } catch (e) {
+      console.error('deleteTask例外（ロールバック）:', e);
+      tasks.splice(oldTaskIdx, 0, oldTask);
+      render();
+    }
+  }
+
+  function startEdit(taskId, textEl) {
+    const t = tasks.find(x => x.id === taskId);
+    if (!t) return;
+
+    const li = textEl.closest('.task') || textEl.closest('.future-task');
+    let finished = false;
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = t.text;
+    input.className = 'edit-input';
+    input.maxLength = 120;
+
+    textEl.replaceWith(input);
+    if (li) li.classList.add('editing');
+    input.focus();
+    input.select();
+
+    const finish = async (save) => {
+      if (finished) return;
+      finished = true;
+      if (save) {
+        const newText = input.value.trim();
+        if (newText && newText !== t.text && supabaseClient && currentUser) {
+          const oldText = t.text;
+          t.text = newText;
+
+          try {
+            const { error } = await supabaseClient
+              .from('tasks')
+              .update({ text: newText })
+              .eq('id', t.id);
+
+            if (error) {
+              console.error('テキスト編集エラー:', error);
+              t.text = oldText;
+            }
+          } catch (e) {
+            console.error('テキスト編集例外:', e);
+            t.text = oldText;
+          }
+        }
+      }
+      render();
+    };
+
+    input.addEventListener('blur', () => finish(true));
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        finish(true);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        finish(false);
+      }
+    });
+  }
+
+  async function moveToToday(id) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    if (!supabaseClient || !currentUser) return;
+
+    const oldDate = t.date;
+    const newDate = todayStr();
+
+    // 1. 即座にUI更新
+    t.date = newDate;
+    render();
+
+    // 2. 裏で保存
+    try {
+      const { error } = await supabaseClient
+        .from('tasks')
+        .update({ date: newDate })
+        .eq('id', id);
+
+      if (error) {
+        console.error('moveToTodayエラー（ロールバック）:', error);
+        t.date = oldDate;
+        render();
+      }
+    } catch (e) {
+      console.error('moveToToday例外（ロールバック）:', e);
+      t.date = oldDate;
+      render();
+    }
+  }
+
+  function pulseCounter() {
+    const el = document.getElementById('counter');
+    el.style.transform = 'scale(1.5)';
+    setTimeout(() => { el.style.transform = 'scale(1)'; }, 280);
+  }
+
+  function makeCheckbox(task) {
+    const cb = document.createElement('div');
+    cb.className = 'checkbox';
+    cb.setAttribute('role', 'checkbox');
+    cb.setAttribute('aria-checked', task.done ? 'true' : 'false');
+    cb.setAttribute('tabindex', '0');
+    cb.innerHTML = '<div class="check-icon"><svg width="9" height="9" viewBox="0 0 9 9"><polyline points="1.5,4.5 3.5,6.5 7.5,2.5"/></svg></div>';
+    cb.addEventListener('click', () => toggleTask(task.id));
+    cb.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        toggleTask(task.id);
+      }
+    });
+    return cb;
+  }
+
+  function makeDeleteBtn(id) {
+    const del = document.createElement('button');
+    del.className = 'icon-btn delete';
+    del.setAttribute('aria-label', '削除');
+    del.textContent = '×';
+    del.addEventListener('click', () => deleteTask(id));
+    return del;
+  }
+
+  function makeRescheduleBtn(id) {
+    const btn = document.createElement('button');
+    btn.className = 'icon-btn';
+    btn.textContent = '予定';
+    btn.setAttribute('aria-label', '予定日を変更');
+    btn.addEventListener('click', (e) => startReschedule(id, e.currentTarget));
+    return btn;
+  }
+
+  function makeDragHandle() {
+    const handle = document.createElement('span');
+    handle.className = 'drag-handle';
+    handle.setAttribute('aria-label', 'ドラッグして並び替え');
+    handle.innerHTML = '<svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true"><circle cx="2.5" cy="2.5" r="1.1"/><circle cx="7.5" cy="2.5" r="1.1"/><circle cx="2.5" cy="7" r="1.1"/><circle cx="7.5" cy="7" r="1.1"/><circle cx="2.5" cy="11.5" r="1.1"/><circle cx="7.5" cy="11.5" r="1.1"/></svg>';
+    return handle;
+  }
+
+  let sortableInstances = [];
+  function initSortable() {
+    if (typeof Sortable === 'undefined') return;
+    sortableInstances.forEach(s => { try { s.destroy(); } catch(e) {} });
+    sortableInstances = [];
+
+    const opts = {
+      animation: 160,
+      delay: 180,
+      delayOnTouchOnly: true,
+      touchStartThreshold: 5,
+      handle: '.drag-handle',
+      ghostClass: 'sortable-ghost',
+      chosenClass: 'sortable-chosen',
+      dragClass: 'sortable-drag',
+      onEnd: handleDragEnd
+    };
+
+    const todayList = document.getElementById('todayList');
+    if (todayList) {
+      sortableInstances.push(new Sortable(todayList, opts));
+    }
+    document.querySelectorAll('.future-task-rows').forEach(container => {
+      sortableInstances.push(new Sortable(container, opts));
+    });
+  }
+
+  async function handleDragEnd(evt) {
+    if (!supabaseClient || !currentUser) return;
+
+    const container = evt.to;
+    const newIds = Array.from(container.children)
+      .map(el => el.dataset.taskId)
+      .filter(id => id);
+
+    if (newIds.length === 0) return;
+
+    const sectionTasks = newIds.map(id => tasks.find(t => t.id === id)).filter(Boolean);
+
+    // 古い順序を保存（ロールバック用）
+    const oldOrders = sectionTasks.map(t => t.order || 0);
+    const newOrders = [...oldOrders].sort((a, b) => a - b);
+
+    // 1. メモリ上で順序を更新（Optimistic、SortableJSが既にDOMを更新済み）
+    sectionTasks.forEach((t, i) => {
+      t.order = newOrders[i];
+    });
+
+    // 2. 裏でSupabaseに反映
+    try {
+      const updates = sectionTasks.map(t =>
+        supabaseClient
+          .from('tasks')
+          .update({ order: t.order })
+          .eq('id', t.id)
+      );
+      const results = await Promise.all(updates);
+      const errors = results.filter(r => r.error);
+      if (errors.length > 0) {
+        console.error('handleDragEndエラー（ロールバック）:', errors);
+        sectionTasks.forEach((t, i) => {
+          t.order = oldOrders[i];
+        });
+        render();
+      } else {
+        console.log('並び替え保存:', sectionTasks.length, '件');
+      }
+    } catch (e) {
+      console.error('handleDragEnd例外（ロールバック）:', e);
+      sectionTasks.forEach((t, i) => {
+        t.order = oldOrders[i];
+      });
+      render();
+    }
+  }
+
+  let reschedulingId = null;
+  function startReschedule(id, anchorEl) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    reschedulingId = id;
+    const input = document.getElementById('rescheduleInput');
+
+    // ピッカーをボタン直下に出すため、input要素をボタンの位置に動的配置
+    if (anchorEl) {
+      const rect = anchorEl.getBoundingClientRect();
+      input.style.position = 'fixed';
+      input.style.top = `${rect.bottom + 4}px`;
+      input.style.left = `${rect.left}px`;
+    }
+
+    input.value = t.date;
+    input.min = todayStr();
+    input.max = maxDateStr();
+    try {
+      if (typeof input.showPicker === 'function') {
+        input.showPicker();
+      } else {
+        input.focus();
+        input.click();
+      }
+    } catch (e) {
+      input.focus();
+      input.click();
+    }
+  }
+
+  function render() {
+    const today = todayStr();
+    const todayList = document.getElementById('todayList');
+    const futureContent = document.getElementById('futureContent');
+    const futureSection = document.getElementById('futureSection');
+    const futureCountEl = document.getElementById('futureCount');
+    todayList.innerHTML = '';
+    futureContent.innerHTML = '';
+
+    // Today's view: undone tasks with date <= today, and done tasks with date === today
+    const todayTasks = tasks.filter(t => {
+      if (!t.done) return t.date <= today;
+      return t.date === today;
+    }).sort((a, b) => {
+      if (a.done !== b.done) return a.done ? 1 : -1;
+      return (a.order || 0) - (b.order || 0);
+    });
+
+    todayTasks.forEach(task => {
+      const li = document.createElement('li');
+      li.className = 'task' + (task.done ? ' done' : '');
+      li.dataset.taskId = task.id;
+
+      li.appendChild(makeDragHandle());
+      li.appendChild(makeCheckbox(task));
+
+      const textEl = document.createElement('span');
+      textEl.className = 'task-text';
+      textEl.textContent = task.text;
+      textEl.addEventListener('click', () => startEdit(task.id, textEl));
+      if (!task.done && task.date < today) {
+        const tag = document.createElement('span');
+        tag.className = 'overdue-tag';
+        tag.textContent = formatOverdueTag(task.date);
+        textEl.appendChild(tag);
+      }
+      li.appendChild(textEl);
+
+      // 時間表示（入力されているタスクだけ）
+      if (task.duration_minutes && task.duration_minutes > 0) {
+        const dur = document.createElement('span');
+        dur.className = 'task-duration';
+        dur.textContent = formatDuration(task.duration_minutes);
+        li.appendChild(dur);
+      }
+
+      const actions = document.createElement('div');
+      actions.className = 'task-actions';
+      if (!task.done) {
+        actions.appendChild(makeRescheduleBtn(task.id));
+      }
+      actions.appendChild(makeDeleteBtn(task.id));
+      li.appendChild(actions);
+
+      todayList.appendChild(li);
+    });
+
+    document.getElementById('emptyToday').style.display = todayTasks.length === 0 ? 'block' : 'none';
+
+    // Future tasks: undone with date > today
+    const future = tasks.filter(t => !t.done && t.date > today)
+                       .sort((a, b) => a.date.localeCompare(b.date) || (a.order || 0) - (b.order || 0));
+
+    if (future.length === 0) {
+      futureSection.style.display = 'none';
+    } else {
+      futureSection.style.display = 'block';
+      futureCountEl.textContent = `(${future.length})`;
+
+      // Group by date
+      const groups = {};
+      future.forEach(t => {
+        if (!groups[t.date]) groups[t.date] = [];
+        groups[t.date].push(t);
+      });
+
+      Object.keys(groups).sort().forEach(dateKey => {
+        const group = document.createElement('div');
+        group.className = 'date-group';
+
+        const header = document.createElement('div');
+        header.className = 'date-group-header';
+        header.textContent = formatShortDate(dateKey);
+        group.appendChild(header);
+
+        const rowsContainer = document.createElement('div');
+        rowsContainer.className = 'future-task-rows';
+        rowsContainer.dataset.dateKey = dateKey;
+        group.appendChild(rowsContainer);
+
+        groups[dateKey].forEach(task => {
+          const row = document.createElement('div');
+          row.className = 'future-task';
+          row.dataset.taskId = task.id;
+
+          row.appendChild(makeDragHandle());
+          row.appendChild(makeCheckbox(task));
+
+          const textEl = document.createElement('span');
+          textEl.className = 'task-text';
+          textEl.textContent = task.text;
+          textEl.addEventListener('click', () => startEdit(task.id, textEl));
+          row.appendChild(textEl);
+
+          // 時間表示（入力されているタスクだけ）
+          if (task.duration_minutes && task.duration_minutes > 0) {
+            const dur = document.createElement('span');
+            dur.className = 'future-task-duration';
+            dur.textContent = formatDuration(task.duration_minutes);
+            row.appendChild(dur);
+          }
+
+          const actions = document.createElement('div');
+          actions.className = 'task-actions';
+
+          const moveBtn = document.createElement('button');
+          moveBtn.className = 'icon-btn';
+          moveBtn.textContent = '今日へ';
+          moveBtn.setAttribute('aria-label', '今日に移す');
+          moveBtn.addEventListener('click', () => moveToToday(task.id));
+          actions.appendChild(moveBtn);
+
+          actions.appendChild(makeRescheduleBtn(task.id));
+          actions.appendChild(makeDeleteBtn(task.id));
+          row.appendChild(actions);
+
+          rowsContainer.appendChild(row);
+        });
+
+        futureContent.appendChild(group);
+      });
+    }
+
+    // Counter: done tasks with date === today
+    const doneToday = tasks.filter(t => t.done && t.date === today).length;
+    document.getElementById('counter').textContent = doneToday;
+    const summaryEl = document.querySelector('.today-summary');
+    if (summaryEl) {
+      if (doneToday === 0) {
+        summaryEl.classList.add('zero');
+      } else {
+        summaryEl.classList.remove('zero');
+      }
+    }
+
+    // Duration sum: 今日のタスクの予定時間合計
+    const totalMinutesToday = tasks
+      .filter(t => t.date === today)
+      .reduce((sum, t) => sum + (t.duration_minutes || 0), 0);
+    const durationSummaryEl = document.getElementById('durationSummary');
+    if (totalMinutesToday > 0) {
+      durationSummaryEl.innerHTML = `予定<span class="duration-num">${formatDuration(totalMinutesToday)}</span>`;
+      durationSummaryEl.style.display = 'block';
+    } else {
+      durationSummaryEl.style.display = 'none';
+    }
+
+    initSortable();
+  }
+
+  document.getElementById('inputForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const textInput = document.getElementById('taskInput');
+    const date = dateInput.value || todayStr();
+    await addTask(textInput.value, date);
+    textInput.value = '';
+    dateInput.value = todayStr();
+    textInput.focus();
+  });
+
+  document.getElementById('futureToggle').addEventListener('click', () => {
+    const sec = document.getElementById('futureSection');
+    sec.classList.toggle('collapsed');
+    const expanded = !sec.classList.contains('collapsed');
+    document.getElementById('futureToggle').setAttribute('aria-expanded', expanded);
+  });
+
+  document.getElementById('rescheduleInput').addEventListener('change', async (e) => {
+    if (reschedulingId !== null && e.target.value) {
+      const id = reschedulingId;
+      reschedulingId = null;
+      const t = tasks.find(x => x.id === id);
+      if (!t || !supabaseClient || !currentUser) return;
+
+      const oldDate = t.date;
+      const newDate = e.target.value;
+
+      // 1. 即座にUI更新
+      t.date = newDate;
+      render();
+
+      // 2. 裏で保存
+      try {
+        const { error } = await supabaseClient
+          .from('tasks')
+          .update({ date: newDate })
+          .eq('id', id);
+
+        if (error) {
+          console.error('日付変更エラー（ロールバック）:', error);
+          t.date = oldDate;
+          render();
+        }
+      } catch (err) {
+        console.error('日付変更例外（ロールバック）:', err);
+        t.date = oldDate;
+        render();
+      }
+    }
+  });
+
+  // ===== 認証ロジック =====
+  const loginScreen = document.getElementById('login-screen');
+  const mainApp = document.getElementById('main-app');
+  const googleLoginBtn = document.getElementById('google-login-btn');
+  const logoutBtn = document.getElementById('logout-btn');
+
+  let currentUser = null;
+  let tasksLoadedForUser = null; // 同じユーザーで重複ロードを防ぐ
+
+  function showLoginScreen() {
+    loginScreen.style.display = 'flex';
+    mainApp.style.display = 'none';
+  }
+
+  function showMainApp() {
+    loginScreen.style.display = 'none';
+    mainApp.style.display = 'block';
+  }
+
+  async function signInWithGoogle() {
+    if (!supabaseClient) {
+      alert('Supabaseクライアントが初期化されていません');
+      return;
+    }
+    console.log('Googleログイン開始');
+    const { error } = await supabaseClient.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin
+      }
+    });
+    if (error) {
+      console.error('ログインエラー:', error);
+      alert('ログインに失敗しました: ' + error.message);
+    }
+  }
+
+  async function signOut() {
+    if (!supabaseClient) return;
+    console.log('ログアウト開始');
+    const { error } = await supabaseClient.auth.signOut();
+    if (error) {
+      console.error('ログアウトエラー:', error);
+    }
+  }
+
+  googleLoginBtn.addEventListener('click', signInWithGoogle);
+  logoutBtn.addEventListener('click', signOut);
+
+  // セッション状態に応じて画面を切り替える統一ハンドラ
+  async function handleSession(session) {
+    if (session && session.user) {
+      const userId = session.user.id;
+      console.log('セッション検知 - ユーザー:', session.user.email);
+      currentUser = session.user;
+      showMainApp();
+      // 同じユーザーで重複ロードしない
+      if (tasksLoadedForUser !== userId) {
+        tasksLoadedForUser = userId;
+        await loadTasks();
+      }
+    } else {
+      console.log('セッションなし - ログイン画面表示');
+      currentUser = null;
+      tasksLoadedForUser = null;
+      tasks = [];
+      showLoginScreen();
+    }
+  }
+
+  if (supabaseClient) {
+    // 認証状態の変化を監視（INITIAL_SESSION, SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED 全部キャッチ）
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      console.log('認証イベント:', event, session ? '(セッション有)' : '(セッション無)');
+      handleSession(session);
+    });
+
+    // 起動時に現在のセッションを取得して初期表示
+    supabaseClient.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('セッション取得エラー:', error);
+      }
+      handleSession(session);
+    });
+  } else {
+    showLoginScreen();
+  }
+
+  // ===== 履歴画面ロジック =====
+  let historyTasks = [];
+  const historyScreen = document.getElementById('history-screen');
+  const historyBtn = document.getElementById('history-btn');
+  const backFromHistory = document.getElementById('back-from-history');
+
+  function formatCompletedDate(isoString) {
+    const d = new Date(isoString);
+    return `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())} ${days[d.getDay()]}`;
+  }
+
+  async function loadHistory() {
+    if (!supabaseClient || !currentUser) return;
+
+    try {
+      const { data, error } = await supabaseClient
+        .from('tasks')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .eq('done', true)
+        .order('completed_at', { ascending: false });
+
+      if (error) {
+        console.error('履歴読み込みエラー:', error);
+        historyTasks = [];
+      } else {
+        historyTasks = data || [];
+        console.log('履歴読み込み:', historyTasks.length, '件');
+      }
+    } catch (e) {
+      console.error('loadHistory例外:', e);
+      historyTasks = [];
+    }
+
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const list = document.getElementById('history-list');
+    const empty = document.getElementById('history-empty');
+    list.innerHTML = '';
+
+    if (historyTasks.length === 0) {
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+
+    historyTasks.forEach(task => {
+      const li = document.createElement('li');
+      li.className = 'history-item';
+
+      const body = document.createElement('div');
+      body.className = 'history-item-body';
+
+      const text = document.createElement('div');
+      text.className = 'history-item-text';
+      text.textContent = task.text;
+
+      const meta = document.createElement('div');
+      meta.className = 'history-item-meta';
+      const dateStr = task.completed_at
+        ? formatCompletedDate(task.completed_at)
+        : '完了日不明';
+      meta.textContent = `完了: ${dateStr}`;
+
+      body.appendChild(text);
+      body.appendChild(meta);
+
+      const restoreBtn = document.createElement('button');
+      restoreBtn.className = 'restore-btn';
+      restoreBtn.textContent = '今日に戻す';
+      restoreBtn.addEventListener('click', () => restoreToToday(task.id));
+
+      li.appendChild(body);
+      li.appendChild(restoreBtn);
+      list.appendChild(li);
+    });
+  }
+
+  async function restoreToToday(id) {
+    if (!supabaseClient || !currentUser) return;
+
+    const today = todayStr();
+    const maxOrder = tasks.reduce((m, t) => Math.max(m, t.order || 0), -1);
+
+    try {
+      const { data, error } = await supabaseClient
+        .from('tasks')
+        .update({
+          done: false,
+          completed_at: null,
+          date: today,
+          order: maxOrder + 1
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('復活エラー:', error);
+        return;
+      }
+
+      console.log('タスク復活:', data);
+
+      // メインのtasksリストを更新
+      const existingIdx = tasks.findIndex(t => t.id === id);
+      if (existingIdx >= 0) {
+        tasks[existingIdx] = data;
+      } else {
+        tasks.push(data);
+      }
+
+      // 履歴から除外
+      historyTasks = historyTasks.filter(t => t.id !== id);
+      renderHistory();
+      render();
+    } catch (e) {
+      console.error('restoreToToday例外:', e);
+    }
+  }
+
+  function showHistoryScreen() {
+    mainApp.style.display = 'none';
+    historyScreen.style.display = 'block';
+    loadHistory();
+  }
+
+  function hideHistoryScreen() {
+    historyScreen.style.display = 'none';
+    mainApp.style.display = 'block';
+  }
+
+  historyBtn.addEventListener('click', showHistoryScreen);
+  backFromHistory.addEventListener('click', hideHistoryScreen);
+
+  // ===== Service Worker 登録（PWA化） =====
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(reg => console.log('Service Worker 登録成功:', reg.scope))
+        .catch(err => console.warn('Service Worker 登録失敗:', err));
+    });
+  }
+</script>
+</body>
+</html>
