@@ -564,6 +564,54 @@
     flex-shrink: 0;
     letter-spacing: 0.05em;
     white-space: nowrap;
+    cursor: pointer;
+    border-bottom: 1px dashed var(--hairline-strong);
+  }
+
+  .task-duration:hover,
+  .future-task-duration:hover {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .add-duration-btn {
+    font-size: 10px;
+    color: var(--faint);
+    margin: 0 8px;
+    flex-shrink: 0;
+    cursor: pointer;
+    background: none;
+    border: 1px dashed var(--hairline-strong);
+    border-radius: 10px;
+    padding: 2px 7px;
+    font-family: inherit;
+    letter-spacing: 0.03em;
+    transition: all 0.15s ease;
+  }
+
+  .add-duration-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  /* 時間編集ポップアップ */
+  .duration-popup {
+    position: fixed;
+    background: var(--paper);
+    border: 1px solid var(--hairline-strong);
+    border-radius: 12px;
+    padding: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    z-index: 1000;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: 260px;
+  }
+
+  .duration-popup .dur-btn {
+    font-size: 11px;
+    padding: 5px 10px;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -1182,6 +1230,91 @@
     setTimeout(() => { el.style.transform = 'scale(1)'; }, 280);
   }
 
+  async function updateDuration(id, minutes) {
+    const t = tasks.find(x => x.id === id);
+    if (!t || !supabaseClient || !currentUser) return;
+
+    const oldDuration = t.duration_minutes;
+    t.duration_minutes = minutes > 0 ? minutes : null;
+    render();
+
+    try {
+      const { error } = await supabaseClient
+        .from('tasks')
+        .update({ duration_minutes: minutes > 0 ? minutes : null })
+        .eq('id', id);
+
+      if (error) {
+        console.error('duration更新エラー:', error);
+        t.duration_minutes = oldDuration;
+        render();
+      }
+    } catch (e) {
+      console.error('duration更新例外:', e);
+      t.duration_minutes = oldDuration;
+      render();
+    }
+  }
+
+  let currentPopup = null;
+
+  function showDurationPopup(taskId, anchorEl, currentMinutes) {
+    // 既存ポップアップを閉じる
+    if (currentPopup) {
+      currentPopup.remove();
+      currentPopup = null;
+    }
+
+    const popup = document.createElement('div');
+    popup.className = 'duration-popup';
+
+    const options = [
+      { min: 0, label: '−' },
+      { min: 15, label: '15分' },
+      { min: 30, label: '30分' },
+      { min: 45, label: '45分' },
+      { min: 60, label: '1時間' },
+      { min: 90, label: '1.5時間' },
+      { min: 120, label: '2時間' },
+    ];
+
+    options.forEach(({ min, label }) => {
+      const btn = document.createElement('button');
+      btn.className = 'dur-btn' + (min === currentMinutes ? ' selected' : '');
+      btn.textContent = label;
+      btn.addEventListener('click', () => {
+        updateDuration(taskId, min);
+        popup.remove();
+        currentPopup = null;
+      });
+      popup.appendChild(btn);
+    });
+
+    document.body.appendChild(popup);
+    currentPopup = popup;
+
+    // 位置を計算
+    const rect = anchorEl.getBoundingClientRect();
+    const popupWidth = 260;
+    let left = rect.left;
+    if (left + popupWidth > window.innerWidth - 10) {
+      left = window.innerWidth - popupWidth - 10;
+    }
+    popup.style.top = `${rect.bottom + 6}px`;
+    popup.style.left = `${left}px`;
+
+    // 外側クリックで閉じる
+    setTimeout(() => {
+      document.addEventListener('click', function closePopup(e) {
+        if (!popup.contains(e.target)) {
+          popup.remove();
+          currentPopup = null;
+          document.removeEventListener('click', closePopup);
+        }
+      });
+    }, 0);
+  }
+
   function makeCheckbox(task) {
     const cb = document.createElement('div');
     cb.className = 'checkbox';
@@ -1370,12 +1503,25 @@
       }
       li.appendChild(textEl);
 
-      // 時間表示（入力されているタスクだけ）
+      // 時間表示（クリックで編集可能）
       if (task.duration_minutes && task.duration_minutes > 0) {
         const dur = document.createElement('span');
         dur.className = 'task-duration';
         dur.textContent = formatDuration(task.duration_minutes);
+        dur.addEventListener('click', (e) => {
+          e.stopPropagation();
+          showDurationPopup(task.id, dur, task.duration_minutes);
+        });
         li.appendChild(dur);
+      } else if (!task.done) {
+        const addBtn = document.createElement('button');
+        addBtn.className = 'add-duration-btn';
+        addBtn.textContent = '+時間';
+        addBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          showDurationPopup(task.id, addBtn, 0);
+        });
+        li.appendChild(addBtn);
       }
 
       const actions = document.createElement('div');
@@ -1436,12 +1582,25 @@
           textEl.addEventListener('click', () => startEdit(task.id, textEl));
           row.appendChild(textEl);
 
-          // 時間表示（入力されているタスクだけ）
+          // 時間表示（クリックで編集可能）
           if (task.duration_minutes && task.duration_minutes > 0) {
             const dur = document.createElement('span');
             dur.className = 'future-task-duration';
             dur.textContent = formatDuration(task.duration_minutes);
+            dur.addEventListener('click', (e) => {
+              e.stopPropagation();
+              showDurationPopup(task.id, dur, task.duration_minutes);
+            });
             row.appendChild(dur);
+          } else {
+            const addBtn = document.createElement('button');
+            addBtn.className = 'add-duration-btn';
+            addBtn.textContent = '+時間';
+            addBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              showDurationPopup(task.id, addBtn, 0);
+            });
+            row.appendChild(addBtn);
           }
 
           const actions = document.createElement('div');
