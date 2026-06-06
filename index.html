@@ -1486,7 +1486,8 @@
     options.forEach(({ label, date }) => {
       const btn = document.createElement('button');
       btn.textContent = label;
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         rescheduleTask(id, date);
         popup.remove();
       });
@@ -1513,7 +1514,7 @@
           document.removeEventListener('click', close);
         }
       });
-    }, 0);
+    }, 100);
   }
 
   function dateOffset(days) {
