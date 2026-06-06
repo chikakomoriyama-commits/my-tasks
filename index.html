@@ -1847,7 +1847,11 @@
     // 認証状態の変化を監視（INITIAL_SESSION, SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED 全部キャッチ）
     supabaseClient.auth.onAuthStateChange((event, session) => {
       console.log('認証イベント:', event, session ? '(セッション有)' : '(セッション無)');
-      handleSession(session);
+      if (event === 'SIGNED_OUT') {
+        handleSession(null);
+      } else if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+        handleSession(session);
+      }
     });
 
     // 起動時に現在のセッションを取得して初期表示
