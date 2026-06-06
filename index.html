@@ -594,7 +594,37 @@
     border-color: var(--accent);
   }
 
-  /* 時間編集ポップアップ */
+  /* 日付変更ポップアップ */
+  .reschedule-popup {
+    position: fixed;
+    background: var(--paper);
+    border: 1px solid var(--hairline-strong);
+    border-radius: 12px;
+    padding: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 130px;
+  }
+
+  .reschedule-popup button {
+    background: none;
+    border: none;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--ink);
+    padding: 8px 12px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.12s ease;
+  }
+
+  .reschedule-popup button:hover {
+    background: var(--hairline);
+  }
   .duration-popup {
     position: fixed;
     background: var(--paper);
@@ -863,7 +893,7 @@
       <button type="button" class="dur-btn" data-min="90">1.5時間</button>
       <button type="button" class="dur-btn" data-min="120">2時間</button>
     </div>
-    <input type="date" id="rescheduleInput" aria-hidden="true" tabindex="-1" style="position: absolute; top: 0; left: 0; width: 1px; height: 1px; opacity: 0;" />
+
 
     <ul class="task-list" id="todayList"></ul>
     <div id="emptyToday" class="empty-state" style="display:none;">今日はまだ何もない。思いついたらここに。</div>
@@ -1434,35 +1464,70 @@
     }
   }
 
-  let reschedulingId = null;
   function startReschedule(id, anchorEl) {
     const t = tasks.find(x => x.id === id);
     if (!t) return;
-    reschedulingId = id;
-    const input = document.getElementById('rescheduleInput');
 
-    // ピッカーをボタン直下に出すため、input要素をボタンの位置に動的配置
-    if (anchorEl) {
-      const rect = anchorEl.getBoundingClientRect();
-      input.style.position = 'fixed';
-      input.style.top = `${rect.bottom + 4}px`;
-      input.style.left = `${rect.left}px`;
-    }
+    // 既存ポップアップを閉じる
+    const existing = document.querySelector('.reschedule-popup');
+    if (existing) { existing.remove(); return; }
 
-    input.value = t.date;
-    input.min = todayStr();
-    input.max = maxDateStr();
-    try {
-      if (typeof input.showPicker === 'function') {
-        input.showPicker();
-      } else {
-        input.focus();
-        input.click();
-      }
-    } catch (e) {
-      input.focus();
-      input.click();
+    const popup = document.createElement('div');
+    popup.className = 'reschedule-popup';
+
+    const today = new Date();
+    const options = [
+      { label: '明日', date: dateOffset(1) },
+      { label: '今週末', date: getWeekend() },
+      { label: '1週間後', date: dateOffset(7) },
+      { label: '2週間後', date: dateOffset(14) },
+    ];
+
+    options.forEach(({ label, date }) => {
+      const btn = document.createElement('button');
+      btn.textContent = label;
+      btn.addEventListener('click', () => {
+        rescheduleTask(id, date);
+        popup.remove();
+      });
+      popup.appendChild(btn);
+    });
+
+    document.body.appendChild(popup);
+
+    // 位置を計算
+    const rect = anchorEl.getBoundingClientRect();
+    let left = rect.left;
+    const popupWidth = 140;
+    if (left + popupWidth > window.innerWidth - 10) {
+      left = window.innerWidth - popupWidth - 10;
     }
+    popup.style.top = `${rect.bottom + 4}px`;
+    popup.style.left = `${left}px`;
+
+    // 外側クリックで閉じる
+    setTimeout(() => {
+      document.addEventListener('click', function close(e) {
+        if (!popup.contains(e.target)) {
+          popup.remove();
+          document.removeEventListener('click', close);
+        }
+      });
+    }, 0);
+  }
+
+  function dateOffset(days) {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
+  }
+
+  function getWeekend() {
+    const d = new Date();
+    const day = d.getDay();
+    const daysUntilSat = day === 0 ? 6 : 6 - day;
+    d.setDate(d.getDate() + (daysUntilSat === 0 ? 7 : daysUntilSat));
+    return d.toISOString().split('T')[0];
   }
 
   function render() {
@@ -1681,39 +1746,31 @@
     document.getElementById('futureToggle').setAttribute('aria-expanded', expanded);
   });
 
-  document.getElementById('rescheduleInput').addEventListener('change', async (e) => {
-    if (reschedulingId !== null && e.target.value) {
-      const id = reschedulingId;
-      reschedulingId = null;
-      const t = tasks.find(x => x.id === id);
-      if (!t || !supabaseClient || !currentUser) return;
+  async function rescheduleTask(id, newDate) {
+    const t = tasks.find(x => x.id === id);
+    if (!t || !supabaseClient || !currentUser) return;
 
-      const oldDate = t.date;
-      const newDate = e.target.value;
+    const oldDate = t.date;
+    t.date = newDate;
+    render();
 
-      // 1. 即座にUI更新
-      t.date = newDate;
-      render();
+    try {
+      const { error } = await supabaseClient
+        .from('tasks')
+        .update({ date: newDate })
+        .eq('id', id);
 
-      // 2. 裏で保存
-      try {
-        const { error } = await supabaseClient
-          .from('tasks')
-          .update({ date: newDate })
-          .eq('id', id);
-
-        if (error) {
-          console.error('日付変更エラー（ロールバック）:', error);
-          t.date = oldDate;
-          render();
-        }
-      } catch (err) {
-        console.error('日付変更例外（ロールバック）:', err);
+      if (error) {
+        console.error('日付変更エラー（ロールバック）:', error);
         t.date = oldDate;
         render();
       }
+    } catch (err) {
+      console.error('日付変更例外（ロールバック）:', err);
+      t.date = oldDate;
+      render();
     }
-  });
+  }
 
   // ===== 認証ロジック =====
   const loginScreen = document.getElementById('login-screen');
