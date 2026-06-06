@@ -1506,15 +1506,26 @@
     popup.style.top = `${rect.bottom + 4}px`;
     popup.style.left = `${left}px`;
 
-    // 外側クリックで閉じる
+    // Escキーで閉じる
+    function onRescheduleKey(e) {
+      if (e.key === 'Escape') {
+        popup.remove();
+        document.removeEventListener('keydown', onRescheduleKey);
+      }
+    }
+    document.addEventListener('keydown', onRescheduleKey);
+
+    // ポップアップ外クリックで閉じる（mousedownで早めに検知、onceで1回のみ）
     setTimeout(() => {
-      document.addEventListener('click', function close(e) {
-        if (!popup.contains(e.target)) {
+      function onOutside(e) {
+        if (popup.isConnected && !popup.contains(e.target) && !anchorEl.contains(e.target)) {
           popup.remove();
-          document.removeEventListener('click', close);
+          document.removeEventListener('keydown', onRescheduleKey);
         }
-      });
-    }, 100);
+      }
+      document.addEventListener('mousedown', onOutside, { once: true });
+      document.addEventListener('touchstart', onOutside, { once: true });
+    }, 200);
   }
 
   function dateOffset(days) {
