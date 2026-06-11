@@ -1531,15 +1531,22 @@
   function dateOffset(days) {
     const d = new Date();
     d.setDate(d.getDate() + days);
-    return d.toISOString().split('T')[0];
+    // ローカル時間で日付文字列を返す（toISOStringはUTCなのでズレる）
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   }
 
   function getWeekend() {
     const d = new Date();
-    const day = d.getDay();
-    const daysUntilSat = day === 0 ? 6 : 6 - day;
-    d.setDate(d.getDate() + (daysUntilSat === 0 ? 7 : daysUntilSat));
-    return d.toISOString().split('T')[0];
+    const dow = d.getDay(); // 0=日, 6=土
+    const daysUntilSat = dow === 6 ? 7 : 6 - dow; // 今日が土曜なら来週土曜
+    d.setDate(d.getDate() + daysUntilSat);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   }
 
   function render() {
