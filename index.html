@@ -656,54 +656,60 @@
     .title { font-size: 26px; }
     .date-input { max-width: 105px; font-size: 11px; }
 
+    /* 時間ボタンが折り返さないようにスクロール */
+    .duration-picker {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding-bottom: 12px;
+    }
+
     /* タスク行を2行レイアウトに */
     .task {
       flex-wrap: wrap;
       padding: 12px 0;
-      gap: 0;
+      align-items: flex-start;
     }
 
     .drag-handle {
       width: 18px;
-      align-self: flex-start;
       padding-top: 3px;
     }
 
     .checkbox {
-      align-self: flex-start;
       margin-top: 1px;
     }
 
+    /* 1行目：タスク名 */
     .task-text,
     .edit-input {
       font-size: 16px;
-      flex-basis: calc(100% - 40px);
+      flex: 1;
       line-height: 1.5;
     }
 
     /* 2行目：時間・予定・× */
     .task-actions {
+      opacity: 1;
       flex-basis: 100%;
       margin-left: 36px;
       margin-top: 6px;
-      opacity: 1;
-      gap: 8px;
+      gap: 10px;
     }
 
     .task-duration,
     .add-duration-btn {
-      font-size: 13px;
+      font-size: 14px;
       margin: 0;
     }
 
     .icon-btn {
-      font-size: 13px;
-      padding: 4px 10px;
+      font-size: 14px;
+      padding: 5px 12px;
     }
 
     .icon-btn.delete {
       font-size: 18px;
-      padding: 2px 8px;
+      padding: 3px 8px;
     }
   }
 
@@ -1637,6 +1643,10 @@
       }
       li.appendChild(textEl);
 
+      // task-actionsに時間表示・予定・×をまとめる
+      const actions = document.createElement('div');
+      actions.className = 'task-actions';
+
       // 時間表示（クリックで編集可能）
       if (task.duration_minutes && task.duration_minutes > 0) {
         const dur = document.createElement('span');
@@ -1646,7 +1656,7 @@
           e.stopPropagation();
           showDurationPopup(task.id, dur, task.duration_minutes);
         });
-        li.appendChild(dur);
+        actions.appendChild(dur);
       } else if (!task.done) {
         const addBtn = document.createElement('button');
         addBtn.className = 'add-duration-btn';
@@ -1655,11 +1665,9 @@
           e.stopPropagation();
           showDurationPopup(task.id, addBtn, 0);
         });
-        li.appendChild(addBtn);
+        actions.appendChild(addBtn);
       }
 
-      const actions = document.createElement('div');
-      actions.className = 'task-actions';
       if (!task.done) {
         actions.appendChild(makeRescheduleBtn(task.id));
       }
