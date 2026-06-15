@@ -655,6 +655,56 @@
     body { padding: 40px 18px 60px; }
     .title { font-size: 26px; }
     .date-input { max-width: 105px; font-size: 11px; }
+
+    /* タスク行を2行レイアウトに */
+    .task {
+      flex-wrap: wrap;
+      padding: 12px 0;
+      gap: 0;
+    }
+
+    .drag-handle {
+      width: 18px;
+      align-self: flex-start;
+      padding-top: 3px;
+    }
+
+    .checkbox {
+      align-self: flex-start;
+      margin-top: 1px;
+    }
+
+    .task-text,
+    .edit-input {
+      font-size: 16px;
+      flex-basis: calc(100% - 40px);
+      line-height: 1.5;
+    }
+
+    /* 2行目：時間・予定・× */
+    .task-actions {
+      flex-basis: 100%;
+      margin-left: 36px;
+      margin-top: 6px;
+      opacity: 1;
+      gap: 8px;
+    }
+
+    .task-duration,
+    .add-duration-btn {
+      font-size: 13px;
+      margin: 0;
+    }
+
+    .icon-btn {
+      font-size: 13px;
+      padding: 4px 10px;
+    }
+
+    .icon-btn.delete {
+      font-size: 18px;
+      padding: 2px 8px;
+    }
   }
 
   @media (hover: none) {
