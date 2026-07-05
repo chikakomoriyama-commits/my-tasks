@@ -824,6 +824,124 @@
     color: var(--muted);
   }
 
+  .note-link-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .note-edit-btn {
+    background: none;
+    border: none;
+    color: var(--faint);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 0 1px;
+    line-height: 1;
+    transition: color 0.2s ease;
+  }
+
+  .note-edit-btn:hover {
+    color: var(--accent);
+  }
+
+  /* ===== ノートURL登録・編集モーダル ===== */
+  .note-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(26, 24, 16, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 100;
+  }
+
+  .note-modal {
+    background: var(--paper);
+    border: 1px solid var(--hairline-strong);
+    border-radius: 8px;
+    padding: 24px;
+    width: 100%;
+    max-width: 380px;
+  }
+
+  .note-modal-title {
+    font-family: 'Fraunces', 'Shippori Mincho', serif;
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+
+  .note-modal-desc {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 16px;
+    line-height: 1.6;
+  }
+
+  .note-modal-input {
+    display: block;
+    width: 100%;
+    border: 1px solid var(--hairline-strong);
+    border-radius: 4px;
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--ink);
+    background: var(--bg);
+    outline: none;
+    margin-bottom: 20px;
+  }
+
+  .note-modal-input:focus {
+    border-color: var(--accent);
+  }
+
+  .note-modal-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .note-modal-actions-right {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  .note-modal-btn {
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-size: 12px;
+    padding: 8px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+    transition: all 0.2s ease;
+  }
+
+  .note-modal-btn-secondary {
+    background: none;
+    border: 1px solid var(--hairline-strong);
+    color: var(--muted);
+  }
+
+  .note-modal-btn-secondary:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .note-modal-btn-primary {
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    color: var(--paper);
+  }
+
+  .note-modal-btn-primary:hover {
+    opacity: 0.85;
+  }
+
   /* ===== 履歴画面 ===== */
   .back-btn {
     background: none;
@@ -931,6 +1049,11 @@
       <h1 class="title">Today</h1>
       <div class="header-right">
         <div class="date-display" id="dateDisplay"></div>
+        <div class="note-link-row">
+          <button class="header-link" id="note-open-btn" style="display:none;">📓 ノート</button>
+          <button class="note-edit-btn" id="note-edit-btn" style="display:none;" aria-label="ノートURLを編集" title="ノートURLを編集">✎</button>
+          <button class="header-link" id="note-register-btn" style="display:none;">＋ ノート</button>
+        </div>
         <button class="header-link" id="history-btn">履歴</button>
         <button class="header-link" id="logout-btn">ログアウト</button>
       </div>
@@ -984,6 +1107,22 @@
     </div>
     <div id="history-empty" class="empty-state" style="display:none;">完了したタスクはまだない。</div>
     <ul class="history-list" id="history-list"></ul>
+  </div>
+
+  <!-- ノートURL登録・編集モーダル -->
+  <div id="note-modal-overlay" class="note-modal-overlay" style="display:none;">
+    <div class="note-modal">
+      <div class="note-modal-title">📓 ノートのリンク</div>
+      <p class="note-modal-desc">Notionなど、常に開きたいページのURLを1つ登録できます。右上の「📓 ノート」からいつでも開けます。</p>
+      <input type="url" id="note-url-input" class="note-modal-input" placeholder="https://www.notion.so/..." />
+      <div class="note-modal-actions">
+        <button type="button" class="note-modal-btn note-modal-btn-secondary" id="note-modal-delete" style="display:none;">削除</button>
+        <div class="note-modal-actions-right">
+          <button type="button" class="note-modal-btn note-modal-btn-secondary" id="note-modal-cancel">キャンセル</button>
+          <button type="button" class="note-modal-btn note-modal-btn-primary" id="note-modal-save">保存</button>
+        </div>
+      </div>
+    </div>
   </div>
 
 <script>
@@ -1079,6 +1218,146 @@
 
     render();
   }
+
+  // ===== ノートリンク（Notion等のURL）機能 =====
+  let noteUrl = null;
+
+  const noteOpenBtn = document.getElementById('note-open-btn');
+  const noteEditBtn = document.getElementById('note-edit-btn');
+  const noteRegisterBtn = document.getElementById('note-register-btn');
+  const noteModalOverlay = document.getElementById('note-modal-overlay');
+  const noteUrlInput = document.getElementById('note-url-input');
+  const noteModalSave = document.getElementById('note-modal-save');
+  const noteModalCancel = document.getElementById('note-modal-cancel');
+  const noteModalDelete = document.getElementById('note-modal-delete');
+
+  function renderNoteLink() {
+    if (noteUrl) {
+      noteOpenBtn.style.display = 'inline';
+      noteEditBtn.style.display = 'inline';
+      noteRegisterBtn.style.display = 'none';
+    } else {
+      noteOpenBtn.style.display = 'none';
+      noteEditBtn.style.display = 'none';
+      noteRegisterBtn.style.display = 'inline';
+    }
+  }
+
+  async function loadNoteUrl() {
+    if (!supabaseClient || !currentUser) {
+      noteUrl = null;
+      renderNoteLink();
+      return;
+    }
+    try {
+      const { data, error } = await supabaseClient
+        .from('user_settings')
+        .select('notion_url')
+        .eq('user_id', currentUser.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error('ノートURL読み込みエラー:', error);
+        noteUrl = null;
+      } else {
+        noteUrl = (data && data.notion_url) || null;
+      }
+    } catch (e) {
+      console.error('loadNoteUrl例外:', e);
+      noteUrl = null;
+    }
+    renderNoteLink();
+  }
+
+  function openNoteModal() {
+    noteUrlInput.value = noteUrl || '';
+    noteModalDelete.style.display = noteUrl ? 'inline-block' : 'none';
+    noteModalOverlay.style.display = 'flex';
+    setTimeout(() => noteUrlInput.focus(), 0);
+  }
+
+  function closeNoteModal() {
+    noteModalOverlay.style.display = 'none';
+  }
+
+  async function saveNoteUrl(url) {
+    if (!supabaseClient || !currentUser) return;
+    try {
+      const { error } = await supabaseClient
+        .from('user_settings')
+        .upsert({ user_id: currentUser.id, notion_url: url, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+
+      if (error) {
+        console.error('ノートURL保存エラー:', error);
+        alert('ノートURLの保存に失敗しました: ' + error.message);
+        return;
+      }
+      noteUrl = url;
+      renderNoteLink();
+      closeNoteModal();
+    } catch (e) {
+      console.error('saveNoteUrl例外:', e);
+      alert('ノートURLの保存に失敗しました');
+    }
+  }
+
+  async function deleteNoteUrl() {
+    if (!supabaseClient || !currentUser) return;
+    try {
+      const { error } = await supabaseClient
+        .from('user_settings')
+        .update({ notion_url: null, updated_at: new Date().toISOString() })
+        .eq('user_id', currentUser.id);
+
+      if (error) {
+        console.error('ノートURL削除エラー:', error);
+        alert('ノートURLの削除に失敗しました: ' + error.message);
+        return;
+      }
+      noteUrl = null;
+      renderNoteLink();
+      closeNoteModal();
+    } catch (e) {
+      console.error('deleteNoteUrl例外:', e);
+      alert('ノートURLの削除に失敗しました');
+    }
+  }
+
+  noteOpenBtn.addEventListener('click', () => {
+    if (noteUrl) window.open(noteUrl, '_blank', 'noopener');
+  });
+  noteEditBtn.addEventListener('click', openNoteModal);
+  noteRegisterBtn.addEventListener('click', openNoteModal);
+  noteModalCancel.addEventListener('click', closeNoteModal);
+  noteModalOverlay.addEventListener('click', (e) => {
+    if (e.target === noteModalOverlay) closeNoteModal();
+  });
+  noteModalDelete.addEventListener('click', deleteNoteUrl);
+  noteModalSave.addEventListener('click', () => {
+    const raw = noteUrlInput.value.trim();
+    if (!raw) {
+      alert('URLを入力してください');
+      return;
+    }
+    let normalized = raw;
+    if (!/^https?:\/\//i.test(normalized)) {
+      normalized = 'https://' + normalized;
+    }
+    try {
+      new URL(normalized);
+    } catch (e) {
+      alert('URLの形式が正しくありません');
+      return;
+    }
+    saveNoteUrl(normalized);
+  });
+  noteUrlInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      noteModalSave.click();
+    }
+  });
+  // ================================================
 
   async function addTask(text, date, durationMinutes) {
     const trimmed = (text || '').trim();
@@ -1911,12 +2190,15 @@
       if (tasksLoadedForUser !== userId) {
         tasksLoadedForUser = userId;
         await loadTasks();
+        await loadNoteUrl();
       }
     } else {
       console.log('セッションなし - ログイン画面表示');
       currentUser = null;
       tasksLoadedForUser = null;
       tasks = [];
+      noteUrl = null;
+      renderNoteLink();
       showLoginScreen();
     }
   }
