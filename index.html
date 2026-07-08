@@ -194,6 +194,40 @@
     color: var(--faint);
     padding: 4px 6px;
   }
+
+  .add-task-btn {
+    display: block;
+    width: 100%;
+    margin: 6px 0 22px;
+    padding: 13px 16px;
+    min-height: 46px;
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--paper);
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.1s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .add-task-btn:hover {
+    opacity: 0.88;
+  }
+
+  .add-task-btn:active {
+    transform: scale(0.985);
+    opacity: 0.8;
+  }
+
+  .add-task-btn:disabled {
+    background: var(--done);
+    cursor: default;
+    opacity: 0.6;
+  }
     border: none;
     background: transparent;
     font-family: inherit;
@@ -1074,6 +1108,8 @@
       <button type="button" class="dur-btn" data-min="90">1.5時間</button>
       <button type="button" class="dur-btn" data-min="120">2時間</button>
     </div>
+
+    <button type="submit" form="inputForm" class="add-task-btn" id="addTaskBtn" disabled>追加</button>
 
 
     <ul class="task-list" id="todayList"></ul>
@@ -2076,6 +2112,15 @@
 
   let selectedDuration = 0;
 
+  const taskInputEl = document.getElementById('taskInput');
+  const addTaskBtn = document.getElementById('addTaskBtn');
+
+  function updateAddBtnState() {
+    addTaskBtn.disabled = !taskInputEl.value.trim();
+  }
+  taskInputEl.addEventListener('input', updateAddBtnState);
+  updateAddBtnState();
+
   document.querySelectorAll('.dur-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const min = parseInt(btn.dataset.min, 10);
@@ -2094,6 +2139,7 @@
     dateInput.value = todayStr();
     selectedDuration = 0;
     document.querySelectorAll('.dur-btn').forEach(b => b.classList.remove('selected'));
+    updateAddBtnState();
     textInput.focus();
   });
 
