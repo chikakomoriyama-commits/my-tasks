@@ -526,6 +526,91 @@
   }
   .future-task:last-child { border-bottom: none; }
 
+  /* 緊張構造チャートリマインダー section */
+  .reminder-section {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid var(--hairline-strong);
+  }
+
+  .reminder-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 0;
+    font-family: 'Shippori Mincho', serif;
+    font-size: 14px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    width: 100%;
+    text-align: left;
+  }
+  .reminder-toggle:hover { color: var(--ink); }
+
+  .reminder-count {
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-size: 12px;
+    color: var(--faint);
+    margin-left: 4px;
+    letter-spacing: 0;
+  }
+
+  .reminder-section.collapsed .chevron {
+    transform: rotate(-90deg);
+  }
+  .reminder-section.collapsed .reminder-content {
+    display: none;
+  }
+
+  .reminder-content {
+    padding-top: 12px;
+  }
+
+  .reminder-hint {
+    font-size: 11px;
+    color: var(--faint);
+    letter-spacing: 0.03em;
+    padding-bottom: 10px;
+  }
+
+  .reminder-task {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .reminder-task:last-child { border-bottom: none; }
+
+  .reminder-task-date {
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--faint);
+    letter-spacing: 0.02em;
+    min-width: 46px;
+  }
+
+  .reminder-task-text {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .reminder-task.overdue .reminder-task-date {
+    color: #A8432F;
+    font-weight: 600;
+  }
+  .reminder-task.overdue .reminder-task-text {
+    color: #A8432F;
+  }
+  .reminder-task.overdue .reminder-task-date::before {
+    content: '● ';
+    font-size: 8px;
+  }
+
   /* Today Summary（完了カウンター） */
   .today-summary {
     margin-top: 20px;
@@ -1126,6 +1211,14 @@
         <span class="chevron" aria-hidden="true">▾</span>
       </button>
       <div class="future-content" id="futureContent"></div>
+    </div>
+
+    <div class="reminder-section" id="reminderSection" style="display:none;">
+      <button class="reminder-toggle" id="reminderToggle" aria-expanded="true">
+        📍 緊張構造チャートリマインダー<span class="reminder-count" id="reminderCount"></span>
+        <span class="chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="reminder-content" id="reminderContent"></div>
     </div>
 
     <div class="footer">
@@ -1932,7 +2025,8 @@
     futureContent.innerHTML = '';
 
     // Today's view: undone tasks with date <= today, and done tasks with date === today
-    const todayTasks = tasks.filter(t => {
+    // ※ source === 'notion'（緊張構造チャートリマインダー）は通常リストには混ぜない
+    const todayTasks = tasks.filter(t => t.source !== 'notion').filter(t => {
       if (!t.done) return t.date <= today;
       return t.date === today;
     }).sort((a, b) => {
@@ -1996,8 +2090,8 @@
 
     document.getElementById('emptyToday').style.display = todayTasks.length === 0 ? 'block' : 'none';
 
-    // Future tasks: undone with date > today
-    const future = tasks.filter(t => !t.done && t.date > today)
+    // Future tasks: undone with date > today（Notionリマインダーは除く）
+    const future = tasks.filter(t => t.source !== 'notion' && !t.done && t.date > today)
                        .sort((a, b) => a.date.localeCompare(b.date) || (a.order || 0) - (b.order || 0));
 
     if (future.length === 0) {
@@ -2083,6 +2177,45 @@
       });
     }
 
+    // 緊張構造チャートリマインダー: source === 'notion' を1本のリストで日付順（超過分も含む）
+    const reminderSection = document.getElementById('reminderSection');
+    const reminderContent = document.getElementById('reminderContent');
+    const reminderCountEl = document.getElementById('reminderCount');
+    reminderContent.innerHTML = '';
+
+    const reminderTasks = tasks.filter(t => t.source === 'notion')
+                              .sort((a, b) => a.date.localeCompare(b.date));
+
+    if (reminderTasks.length === 0) {
+      reminderSection.style.display = 'none';
+    } else {
+      reminderSection.style.display = 'block';
+      reminderCountEl.textContent = `(${reminderTasks.length})`;
+
+      const hint = document.createElement('div');
+      hint.className = 'reminder-hint';
+      hint.textContent = '見るだけのリマインダー。気になったら自分でタスク化を。';
+      reminderContent.appendChild(hint);
+
+      reminderTasks.forEach(task => {
+        const row = document.createElement('div');
+        const isOverdue = task.date < today;
+        row.className = 'reminder-task' + (isOverdue ? ' overdue' : '');
+
+        const dateEl = document.createElement('span');
+        dateEl.className = 'reminder-task-date';
+        dateEl.textContent = formatShortDate(task.date);
+        row.appendChild(dateEl);
+
+        const textEl = document.createElement('span');
+        textEl.className = 'reminder-task-text';
+        textEl.textContent = task.text;
+        row.appendChild(textEl);
+
+        reminderContent.appendChild(row);
+      });
+    }
+
     // Counter: done tasks with date === today
     const doneToday = tasks.filter(t => t.done && t.date === today).length;
     document.getElementById('counter').textContent = doneToday;
@@ -2148,6 +2281,13 @@
     sec.classList.toggle('collapsed');
     const expanded = !sec.classList.contains('collapsed');
     document.getElementById('futureToggle').setAttribute('aria-expanded', expanded);
+  });
+
+  document.getElementById('reminderToggle').addEventListener('click', () => {
+    const sec = document.getElementById('reminderSection');
+    sec.classList.toggle('collapsed');
+    const expanded = !sec.classList.contains('collapsed');
+    document.getElementById('reminderToggle').setAttribute('aria-expanded', expanded);
   });
 
   async function rescheduleTask(id, newDate) {
