@@ -395,6 +395,58 @@
     background: var(--paper);
   }
 
+  /* ===== 区切り線（急ぎ／今日中） ===== */
+  :root {
+    --zone-urgent: #B9553A;
+    --zone-urgent-soft: #F3E3DC;
+    --zone-today: #7A6240;
+    --zone-today-soft: #EEE6D8;
+  }
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .divider .drag-handle { opacity: 0.5; }
+  .divider:hover .drag-handle { opacity: 0.85; color: var(--muted); }
+  .divider-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 2px 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+    line-height: 1.6;
+  }
+  .divider-label small { font-weight: 400; letter-spacing: 0; opacity: 0.8; font-size: 10px; }
+  .divider-line { flex: 1; height: 0; border-top: 2px solid; min-width: 24px; }
+  .divider-stat { font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; white-space: nowrap; opacity: 0.8; }
+  .divider[data-kind="urgent"] .divider-label { background: var(--zone-urgent-soft); color: var(--zone-urgent); }
+  .divider[data-kind="urgent"] .divider-line { border-color: var(--zone-urgent); }
+  .divider[data-kind="today"] .divider-label { background: var(--zone-today-soft); color: var(--zone-today); }
+  .divider[data-kind="today"] .divider-line { border-color: var(--zone-today); }
+  .divider.sortable-chosen .divider-label { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px currentColor; }
+  /* ゾーンごとの濃淡 */
+  .task[data-zone="urgent"]:not(.done) .checkbox { border-color: var(--zone-urgent); }
+  .task[data-zone="later"]:not(.done) .task-text { color: var(--faint); opacity: 0.75; }
+  .task[data-zone="later"]:not(.done) .checkbox { border-color: var(--done); }
+  .zone-tail {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0 6px;
+    font-size: 11px;
+    color: var(--faint);
+    opacity: 0.7;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .zone-tail .divider-line { border-top: 1px dashed var(--hairline-strong); }
+
   .overdue-tag {
     font-size: 11px;
     color: var(--faint);
@@ -803,6 +855,8 @@
       width: 18px;
       padding-top: 3px;
     }
+    .divider { flex-wrap: nowrap; align-items: center; padding: 8px 0; }
+    .divider .drag-handle { padding-top: 0; }
 
     .checkbox {
       margin-top: 1px;
@@ -1291,6 +1345,130 @@
   // ================================================
 
   let tasks = [];
+
+  // ===== 区切り線（急ぎ／今日中） =====
+  // tasks テーブルの特別な行として保存する。text が "::" で始まる行は区切り線。
+  // 並び替えは通常のタスクと同じ order 列で保存されるので、既存のドラッグ処理がそのまま効く。
+  const DIVIDER_PREFIX = '::';
+  const DIVIDER_DEFS = [
+    { kind: 'urgent', text: '::急ぎ',   label: '急ぎ' },
+    { kind: 'today',  text: '::今日中', label: '今日中' }
+  ];
+  let dividers = [];   // 区切り線の行（tasks には含めない）
+
+  function isDividerRow(row) {
+    return typeof row.text === 'string' && row.text.startsWith(DIVIDER_PREFIX);
+  }
+  function dividerKind(row) {
+    const def = DIVIDER_DEFS.find(d => d.text === row.text);
+    return def ? def.kind : null;
+  }
+  function findRow(id) {
+    return tasks.find(t => t.id === id) || dividers.find(d => d.id === id);
+  }
+
+  // 今日の区切り線を用意する。
+  // ・無ければ作る（いちばん下＝全部「明日でもいい」の状態で始まる）
+  // ・前日以前に動かしたものは、いちばん下に戻して date を今日にする
+  async function ensureDividers() {
+    if (!supabaseClient || !currentUser) return;
+    const today = todayStr();
+    let maxOrder = [...tasks, ...dividers].reduce((m, t) => Math.max(m, t.order || 0), -1);
+
+    for (const def of DIVIDER_DEFS) {
+      let row = dividers.find(d => d.text === def.text);
+      if (!row) {
+        maxOrder += 1;
+        row = {
+          id: crypto.randomUUID(),
+          user_id: currentUser.id,
+          text: def.text,
+          date: today,
+          done: false,
+          order: maxOrder
+        };
+        dividers.push(row);
+        try {
+          const { error } = await supabaseClient.from('tasks').insert(row);
+          if (error) console.error('区切り線の作成エラー:', error);
+        } catch (e) {
+          console.error('区切り線の作成例外:', e);
+        }
+      } else if (row.date < today) {
+        maxOrder += 1;
+        row.order = maxOrder;
+        row.date = today;
+        try {
+          const { error } = await supabaseClient
+            .from('tasks')
+            .update({ order: row.order, date: today })
+            .eq('id', row.id);
+          if (error) console.error('区切り線のリセットエラー:', error);
+        } catch (e) {
+          console.error('区切り線のリセット例外:', e);
+        }
+      }
+    }
+  }
+
+  // 「急ぎ」が「今日中」より下に来てしまったら、DOM上で入れ替える（handleDragEnd の前に呼ぶ）
+  function fixDividerOrder(container) {
+    const u = container.querySelector('.divider[data-kind="urgent"]');
+    const t = container.querySelector('.divider[data-kind="today"]');
+    if (!u || !t) return;
+    const kids = Array.from(container.children);
+    if (kids.indexOf(u) > kids.indexOf(t)) t.before(u);
+  }
+
+  function makeDividerRow(row) {
+    const def = DIVIDER_DEFS.find(d => d.text === row.text);
+    const li = document.createElement('li');
+    li.className = 'divider';
+    li.dataset.taskId = row.id;
+    li.dataset.kind = def.kind;
+    li.appendChild(makeDragHandle());
+    const label = document.createElement('span');
+    label.className = 'divider-label';
+    label.innerHTML = '▲ ' + def.label + ' <small>ここまで</small>';
+    li.appendChild(label);
+    const line = document.createElement('span');
+    line.className = 'divider-line';
+    li.appendChild(line);
+    const stat = document.createElement('span');
+    stat.className = 'divider-stat';
+    li.appendChild(stat);
+    return li;
+  }
+
+  function makeZoneTail() {
+    const li = document.createElement('li');
+    li.className = 'zone-tail';
+    li.innerHTML = '<span>ここから下は 明日でもいい</span><span class="divider-line"></span><span class="divider-stat"></span>';
+    return li;
+  }
+
+  // 区切り線の位置からゾーン（urgent / today / later）を各タスク行に付け、件数と合計時間を線に書く
+  function applyZones(container) {
+    const tail = container.querySelector('.zone-tail');
+    const tailStat = tail ? tail.querySelector('.divider-stat') : null;
+    let zone = 'urgent';
+    const groups = { urgent: { n: 0, min: 0 }, today: { n: 0, min: 0 }, later: { n: 0, min: 0 } };
+    const statText = g => g.n ? `${g.n}件${g.min ? ' · ' + formatDuration(g.min) : ''}` : '0件';
+
+    Array.from(container.children).forEach(li => {
+      if (li.classList.contains('divider')) {
+        li.querySelector('.divider-stat').textContent = statText(groups[zone]);
+        zone = li.dataset.kind === 'urgent' ? 'today' : 'later';
+      } else if (li.classList.contains('task') && !li.classList.contains('done')) {
+        li.dataset.zone = zone;
+        const t = tasks.find(x => x.id === li.dataset.taskId);
+        groups[zone].n += 1;
+        groups[zone].min += (t && t.duration_minutes) || 0;
+      }
+    });
+
+    if (tailStat) tailStat.textContent = statText(groups.later);
+  }
   let tensionReminders = []; // 緊張構造チャート由来（tension_charts）
   let routineReminders = []; // 定期リマインダー（routines）
   let chartOwnerName = null; // このユーザーの緊張構造チャート上での名前
@@ -1355,15 +1533,20 @@
       if (error) {
         console.error('タスク読み込みエラー:', error);
         tasks = [];
+        dividers = [];
       } else {
-        tasks = data || [];
+        const rows = data || [];
+        dividers = rows.filter(isDividerRow).filter(r => dividerKind(r));
+        tasks = rows.filter(r => !isDividerRow(r));
         console.log('タスク読み込み:', tasks.length, '件');
       }
     } catch (e) {
       console.error('loadTasks例外:', e);
       tasks = [];
+      dividers = [];
     }
 
+    await ensureDividers();
     render();
   }
 
@@ -2051,6 +2234,7 @@
       delayOnTouchOnly: true,
       touchStartThreshold: 5,
       handle: '.drag-handle',
+      filter: '.zone-tail',
       ghostClass: 'sortable-ghost',
       chosenClass: 'sortable-chosen',
       dragClass: 'sortable-drag',
@@ -2070,13 +2254,15 @@
     if (!supabaseClient || !currentUser) return;
 
     const container = evt.to;
+    fixDividerOrder(container);
+    applyZones(container);
     const newIds = Array.from(container.children)
       .map(el => el.dataset.taskId)
       .filter(id => id);
 
     if (newIds.length === 0) return;
 
-    const sectionTasks = newIds.map(id => tasks.find(t => t.id === id)).filter(Boolean);
+    const sectionTasks = newIds.map(id => findRow(id)).filter(Boolean);
 
     // 古い順序を保存（ロールバック用）
     const oldOrders = sectionTasks.map(t => t.order || 0);
@@ -2218,7 +2404,19 @@
       return (a.order || 0) - (b.order || 0);
     });
 
-    todayTasks.forEach(task => {
+    // 未完了タスクの中に区切り線を order 順で差し込む（完了タスクは常にその下）
+    const undoneRows = [...todayTasks.filter(t => !t.done), ...dividers]
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+    const rowsToRender = [...undoneRows, ...todayTasks.filter(t => t.done)];
+
+    rowsToRender.forEach((task, idx) => {
+      if (idx === undoneRows.length && dividers.length > 0) {
+        todayList.appendChild(makeZoneTail());
+      }
+      if (isDividerRow(task)) {
+        todayList.appendChild(makeDividerRow(task));
+        return;
+      }
       const li = document.createElement('li');
       li.className = 'task' + (task.done ? ' done' : '');
       li.dataset.taskId = task.id;
@@ -2271,6 +2469,11 @@
 
       todayList.appendChild(li);
     });
+
+    if (undoneRows.length > 0 && rowsToRender.length === undoneRows.length && dividers.length > 0) {
+      todayList.appendChild(makeZoneTail());
+    }
+    applyZones(todayList);
 
     document.getElementById('emptyToday').style.display = todayTasks.length === 0 ? 'block' : 'none';
 
@@ -2549,6 +2752,7 @@
       currentUser = null;
       tasksLoadedForUser = null;
       tasks = [];
+      dividers = [];
       noteUrl = null;
       renderNoteLink();
       showLoginScreen();
