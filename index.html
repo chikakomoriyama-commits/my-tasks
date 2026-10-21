@@ -1524,11 +1524,16 @@
     }
 
     try {
+      // 画面に必要なのは「未完了」と「今日完了したもの」だけ。
+      // 過去の完了タスクまで全部読むと Supabase の既定上限（1000行）に当たり、
+      // order が大きい＝新しいタスクが読み込まれずに「消えた」ように見える。
       const { data, error } = await supabaseClient
         .from('tasks')
         .select('*')
         .eq('user_id', currentUser.id)
-        .order('order', { ascending: true });
+        .or(`done.eq.false,date.eq.${todayStr()}`)
+        .order('order', { ascending: true })
+        .limit(5000);
 
       if (error) {
         console.error('タスク読み込みエラー:', error);
@@ -2801,7 +2806,8 @@
         .select('*')
         .eq('user_id', currentUser.id)
         .eq('done', true)
-        .order('completed_at', { ascending: false });
+        .order('completed_at', { ascending: false })
+        .limit(500);
 
       if (error) {
         console.error('履歴読み込みエラー:', error);
